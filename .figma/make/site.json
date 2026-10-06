@@ -1,0 +1,11 @@
+{
+  "title": "Conecta",
+  "description": "A comprehensive platform for young adults to connect, learn, and collaborate through communities, AI assistance, and integrated video features.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

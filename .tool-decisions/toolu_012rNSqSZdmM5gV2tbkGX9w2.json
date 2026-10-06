@@ -1,0 +1,1 @@
+{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","additionalContext":"The user has approved the web search. The results of this search have not been shown to the user, so make sure to show them if it makes sense in the context of the conversation."}}
