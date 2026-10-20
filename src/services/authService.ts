@@ -1,5 +1,7 @@
-import { createClient } from '@supabase/supabase-js'
 import { projectId, publicAnonKey } from '../../utils/supabase/info'
+import { supabase } from './supabaseClient'
+
+export { supabase } from './supabaseClient'
 
 export const OWNER_EMAIL = 'senhoremail448@gmail.com'
 export const ADMIN_EMAIL = OWNER_EMAIL
@@ -17,12 +19,6 @@ export interface UserProfile {
   joinedAt: string
 }
 
-export const supabase = createClient(
-  `https://${projectId}.supabase.co`,
-  publicAnonKey,
-  { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } },
-)
-
 const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-b92ddf44`
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
@@ -36,6 +32,25 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${session.access_token}`,
+        ...init?.headers,
+      },
+    })
+  } catch {
+    throw new Error('O Supabase está indisponível. Verifique a conexão do projeto nas configurações do Make.')
+  }
+  const body = await response.json().catch(() => ({})) as { error?: string }
+  if (!response.ok) throw new Error(body.error || 'Não foi possível concluir a operação.')
+  return body as T
+}
+
+export async function publicApi<T>(path: string, init?: RequestInit): Promise<T> {
+  let response: Response
+  try {
+    response = await fetch(`${serverUrl}${path}`, {
+      ...init,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${publicAnonKey}`,
         ...init?.headers,
       },
     })

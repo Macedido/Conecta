@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import Logo from './components/Logo'
 import { COMMUNITIES } from './data/communities'
+import { getDemoMessages } from './data/demoMessages'
 import { VIDEOS, SUBJECTS } from './data/videos'
 import type { Subject } from './data/videos'
 import { sendAIMessage } from './services/aiService'
@@ -61,7 +62,7 @@ function EmptyState({ emoji, title, sub }: { emoji: string; title: string; sub?:
 }
 
 // ─── Login Screen ─────────────────────────────────────────────────────────────
-function LoginScreen({ onLogin }: { onLogin: (p: UserProfile) => void }) {
+function LoginScreen({ onLogin, onBrowse }: { onLogin: (p: UserProfile) => void; onBrowse: () => void }) {
   const [mode, setMode] = useState<'login' | 'signup'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -132,6 +133,18 @@ function LoginScreen({ onLogin }: { onLogin: (p: UserProfile) => void }) {
               {loading ? 'Aguarde...' : mode === 'login' ? 'Entrar' : 'Criar minha conta'}
             </button>
           </form>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '20px 0 16px', color: 'var(--muted-foreground)', fontSize: 11 }}>
+            <span style={{ height: 1, flex: 1, background: 'var(--border)' }} />
+            ou
+            <span style={{ height: 1, flex: 1, background: 'var(--border)' }} />
+          </div>
+          <button type="button" onClick={onBrowse}
+            style={{ width: '100%', padding: '11px 0', borderRadius: 10, background: 'var(--secondary)', border: '1px solid var(--border)', color: 'var(--foreground)', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+            Explorar sem entrar
+          </button>
+          <p style={{ margin: '10px 0 0', textAlign: 'center', color: 'var(--muted-foreground)', fontSize: 11, lineHeight: 1.4 }}>
+            No modo visitante você pode visualizar comunidades, mensagens e vídeos.
+          </p>
         </div>
       </div>
     </div>
@@ -232,6 +245,7 @@ function EditProfileModal({ user, onSave, onClose }: { user: UserProfile; onSave
 // ─── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [user, setUser] = useState<UserProfile | null>(null)
+  const [isGuest, setIsGuest] = useState(false)
   const [sessionLoading, setSessionLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<Tab>('communities')
   const [activeCommunity, setActiveCommunity] = useState(COMMUNITIES[0])
@@ -256,24 +270,26 @@ export default function App() {
   const aiEndRef = useRef<HTMLDivElement>(null)
 
   const channelKey = `${activeCommunity.id}::${activeChannel.id}`
-  const messages = channelMessages[channelKey] ?? []
+  const messages = channelMessages[channelKey] ?? getDemoMessages(channelKey)
 
   useEffect(() => {
     getSession().then(setUser).finally(() => setSessionLoading(false))
   }, [])
 
   useEffect(() => {
-    if (!user) return
     let active = true
     getMessages(channelKey)
       .then(items => {
-        if (active) setChannelMessages(prev => ({ ...prev, [channelKey]: items }))
+        if (active) setChannelMessages(prev => ({
+          ...prev,
+          [channelKey]: items.length > 0 ? items : getDemoMessages(channelKey),
+        }))
       })
       .catch(() => {
-        if (active) setChannelMessages(prev => ({ ...prev, [channelKey]: [] }))
+        if (active) setChannelMessages(prev => ({ ...prev, [channelKey]: getDemoMessages(channelKey) }))
       })
     return () => { active = false }
-  }, [channelKey, user])
+  }, [channelKey])
 
   useEffect(() => { msgEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
   useEffect(() => { aiEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [aiChat])
@@ -281,22 +297,26 @@ export default function App() {
   const logout = useCallback(async () => {
     await clearSession()
     setUser(null)
+    setIsGuest(false)
     setChannelMessages({})
   }, [])
 
   if (sessionLoading) return <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', color: 'var(--muted-foreground)' }}>Carregando Conecta...</div>
-  if (!user) return <LoginScreen onLogin={setUser} />
+  if (!user && !isGuest) return <LoginScreen onLogin={profile => { setUser(profile); setIsGuest(false) }} onBrowse={() => setIsGuest(true)} />
 
-  const isAdmin = user.role === 'owner' || user.role === 'admin'
+  const isAdmin = !!user && (user.role === 'owner' || user.role === 'admin')
 
   // ── Send chat message ──────────────────────────────────────────────────────
   const sendChat = async () => {
-    if (!chatInput.trim()) return
+    if (!user || !chatInput.trim()) return
     const text = chatInput.trim()
     setChatInput('')
     try {
       const msg = await createMessage(channelKey, text)
-      setChannelMessages(prev => ({ ...prev, [channelKey]: [...(prev[channelKey] ?? []), msg] }))
+      setChannelMessages(prev => ({
+        ...prev,
+        [channelKey]: [...(prev[channelKey] ?? getDemoMessages(channelKey)), msg],
+      }))
     } catch {
       setChatInput(text)
     }
@@ -304,7 +324,7 @@ export default function App() {
 
   // ── Send AI message ────────────────────────────────────────────────────────
   const sendAI = async () => {
-    if (!aiInput.trim() || aiTyping) return
+    if (!user || !aiInput.trim() || aiTyping) return
     const text = aiInput.trim()
     setAiInput('')
     setAiError('')
@@ -343,13 +363,13 @@ export default function App() {
   })
 
   // ── Nav items ──────────────────────────────────────────────────────────────
-  const navItems: { tab: Tab; icon: React.ReactNode; label: string }[] = [
+  const navItems = ([
     { tab: 'communities', label: 'Comunidades', icon: <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> },
     { tab: 'ai', label: 'Conecta IA', icon: <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg> },
     { tab: 'video', label: 'Vídeos', icon: <IVideo /> },
     { tab: 'explore', label: 'Explorar', icon: <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg> },
     { tab: 'profile', label: 'Perfil', icon: <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> },
-  ]
+  ] satisfies { tab: Tab; icon: React.ReactNode; label: string }[]).filter(item => user || item.tab !== 'profile')
 
   // ── Styles helpers ─────────────────────────────────────────────────────────
   const inputStyle: React.CSSProperties = { flex: 1, background: 'var(--secondary)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 13px', color: 'var(--foreground)', fontSize: 14, outline: 'none', fontFamily: 'inherit' }
@@ -373,7 +393,7 @@ export default function App() {
           <div title="Admin" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f59e0b', marginTop: 2 }}><IShield /></div>
         )}
         <div style={{ flex: 1 }} />
-        <button title="Sair" onClick={logout} style={{ width: 42, height: 42, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', color: 'var(--muted-foreground)', border: 'none', cursor: 'pointer' }}>
+        <button title={user ? 'Sair' : 'Entrar'} onClick={user ? logout : () => setIsGuest(false)} style={{ width: 42, height: 42, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', color: 'var(--muted-foreground)', border: 'none', cursor: 'pointer' }}>
           <ILogout />
         </button>
       </nav>
@@ -416,15 +436,18 @@ export default function App() {
             </div>
             {/* User bar */}
             <div style={{ padding: '10px 12px', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 9 }}>
-              <Avatar src={user.avatarDataUrl} name={user.name} size={32} />
+              <Avatar src={user?.avatarDataUrl} name={user?.name ?? 'Visitante'} size={32} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', gap: 5 }}>
-                  {user.name}
+                  {user?.name ?? 'Visitante'}
                   {isAdmin && <span title="Admin" style={{ color: '#f59e0b' }}><IShield /></span>}
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--primary)', display: 'inline-block' }} />Online
-                </div>
+                {user
+                  ? <div style={{ fontSize: 11, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--primary)', display: 'inline-block' }} />Online
+                    </div>
+                  : <button onClick={() => setIsGuest(false)} style={{ border: 0, padding: 0, background: 'transparent', color: 'var(--primary)', fontFamily: 'inherit', fontSize: 11, cursor: 'pointer' }}>Entrar ou criar conta</button>
+                }
               </div>
             </div>
           </aside>
@@ -468,11 +491,17 @@ export default function App() {
               }
               <div ref={msgEndRef} />
             </div>
-            <div style={{ padding: '10px 18px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8 }}>
-              <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendChat()}
-                placeholder={`Mensagem em #${activeChannel.name}`} style={inputStyle} />
-              <button onClick={sendChat} style={{ ...btnPrimary, width: 40, height: 40, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><ISend /></button>
-            </div>
+            {user
+              ? <div style={{ padding: '10px 18px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8 }}>
+                  <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendChat()}
+                    placeholder={`Mensagem em #${activeChannel.name}`} style={inputStyle} />
+                  <button onClick={sendChat} style={{ ...btnPrimary, width: 40, height: 40, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><ISend /></button>
+                </div>
+              : <div style={{ padding: '12px 18px', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, color: 'var(--muted-foreground)', fontSize: 13 }}>
+                  Entre para participar da conversa.
+                  <button onClick={() => setIsGuest(false)} style={{ ...btnPrimary, padding: '7px 14px' }}>Entrar</button>
+                </div>
+            }
           </main>
         </>
       )}
@@ -497,7 +526,7 @@ export default function App() {
               const isAI = !!msg.isAI
               return (
                 <div key={msg.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flexDirection: isAI ? 'row' : 'row-reverse' }}>
-                  <div style={{ width: 34, height: 34, borderRadius: isAI ? 10 : '50%', background: isAI ? '#7c3aed' : avatarColor(user.name), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#fff', flexShrink: 0 }}>{isAI ? 'IA' : initials(user.name)}</div>
+                  <div style={{ width: 34, height: 34, borderRadius: isAI ? 10 : '50%', background: isAI ? '#7c3aed' : avatarColor(user?.name ?? 'Visitante'), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#fff', flexShrink: 0 }}>{isAI ? 'IA' : initials(user?.name ?? 'Visitante')}</div>
                   <div style={{ maxWidth: '72%', background: isAI ? 'var(--card)' : 'var(--primary)', borderRadius: isAI ? '4px 14px 14px 14px' : '14px 4px 14px 14px', padding: '11px 15px', border: isAI ? '1px solid var(--border)' : 'none' }}>
                     <div style={{ fontSize: 14, lineHeight: 1.65, color: isAI ? 'var(--foreground)' : 'var(--primary-foreground)', whiteSpace: 'pre-wrap' }}>{msg.text}</div>
                     <div style={{ fontSize: 11, color: isAI ? 'var(--muted-foreground)' : 'rgba(0,0,0,0.4)', marginTop: 4 }}>{msg.time}</div>
@@ -525,11 +554,17 @@ export default function App() {
             )}
             <div ref={aiEndRef} />
           </div>
-          <div style={{ padding: '10px 22px', borderTop: '1px solid var(--border)', maxWidth: 740, width: '100%', margin: '0 auto', display: 'flex', gap: 8, boxSizing: 'border-box' as const }}>
-            <input value={aiInput} onChange={e => setAiInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendAI()} disabled={aiTyping}
-              placeholder="Pergunte sobre qualquer matéria..." style={inputStyle} />
-            <button onClick={sendAI} disabled={aiTyping} style={{ ...btnPrimary, width: 40, height: 40, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: '#7c3aed' }}><ISend /></button>
-          </div>
+          {user
+            ? <div style={{ padding: '10px 22px', borderTop: '1px solid var(--border)', maxWidth: 740, width: '100%', margin: '0 auto', display: 'flex', gap: 8, boxSizing: 'border-box' as const }}>
+                <input value={aiInput} onChange={e => setAiInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendAI()} disabled={aiTyping}
+                  placeholder="Pergunte sobre qualquer matéria..." style={inputStyle} />
+                <button onClick={sendAI} disabled={aiTyping} style={{ ...btnPrimary, width: 40, height: 40, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: '#7c3aed' }}><ISend /></button>
+              </div>
+            : <div style={{ padding: '12px 22px', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, color: 'var(--muted-foreground)', fontSize: 13 }}>
+                Entre para conversar com a Conecta IA.
+                <button onClick={() => setIsGuest(false)} style={{ ...btnPrimary, padding: '7px 14px' }}>Entrar</button>
+              </div>
+          }
           <style>{`@keyframes bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-5px)}}`}</style>
         </main>
       )}
@@ -659,7 +694,7 @@ export default function App() {
       )}
 
       {/* ══════════════════ PROFILE ══════════════════ */}
-      {activeTab === 'profile' && (
+      {activeTab === 'profile' && user && (
         <main style={{ flex: 1, overflowY: 'auto', padding: '28px 28px' }}>
           <div style={{ maxWidth: 660, margin: '0 auto' }}>
             {/* Cover */}
@@ -736,7 +771,7 @@ export default function App() {
         </main>
       )}
 
-      {showEditProfile && (
+      {showEditProfile && user && (
         <EditProfileModal user={user} onClose={() => setShowEditProfile(false)} onSave={updated => { setUser(updated); setShowEditProfile(false) }} />
       )}
     </div>

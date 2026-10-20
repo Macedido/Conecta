@@ -1,4 +1,4 @@
-import { authorizedApi } from './authService'
+import { authorizedApi, publicApi } from './authService'
 
 export interface PersistedMessage {
   id: string
@@ -6,12 +6,12 @@ export interface PersistedMessage {
   avatar: string
   text: string
   time: string
-  userId: string
+  userId?: string
   createdAt: string
 }
 
 export function getMessages(channel: string): Promise<PersistedMessage[]> {
-  return authorizedApi(`/messages?channel=${encodeURIComponent(channel)}`)
+  return publicApi(`/messages?channel=${encodeURIComponent(channel)}`)
 }
 
 export function createMessage(channel: string, text: string): Promise<PersistedMessage> {
