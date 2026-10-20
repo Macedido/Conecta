@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 @import 'tailwindcss';
 
 @theme inline {
@@ -20,21 +20,21 @@
 }
 
 :root {
-  --background: #0d0f14;
-  --foreground: #e8eaf0;
-  --card: #161921;
-  --card-foreground: #e8eaf0;
-  --primary: #00e676;
-  --primary-foreground: #0d0f14;
-  --secondary: #1e2230;
-  --secondary-foreground: #a8b0c8;
-  --muted: #1a1d26;
-  --muted-foreground: #6b7494;
-  --accent: #7c3aed;
+  --background: #0b110f;
+  --foreground: #edf3eb;
+  --card: #121a17;
+  --card-foreground: #edf3eb;
+  --primary: #a9e58b;
+  --primary-foreground: #12200f;
+  --secondary: #1b2822;
+  --secondary-foreground: #b6c5ba;
+  --muted: #141e19;
+  --muted-foreground: #91a397;
+  --accent: #f0a35e;
   --accent-foreground: #ffffff;
-  --border: #232736;
-  --ring: #00e676;
-  --radius: 10px;
+  --border: #293a31;
+  --ring: #a9e58b;
+  --radius: 8px;
 }
 
 * {
@@ -48,10 +48,81 @@ html, body, #root {
 }
 
 body {
-  font-family: 'Outfit', system-ui, sans-serif;
+  font-family: 'DM Sans', sans-serif;
   background: var(--background);
   color: var(--foreground);
   overflow: hidden;
+}
+
+.login-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.8fr);
+  align-items: center;
+  gap: clamp(32px, 7vw, 108px);
+  padding: clamp(28px, 7vw, 104px);
+  background-color: var(--background);
+  background-image: linear-gradient(rgba(169, 229, 139, 0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(169, 229, 139, 0.035) 1px, transparent 1px), radial-gradient(ellipse at 18% 80%, rgba(62, 112, 75, 0.2), transparent 48%);
+  background-size: 44px 44px, 44px 44px, auto;
+}
+
+.login-story {
+  max-width: 610px;
+  animation: arrive 700ms both;
+}
+
+.login-story h1 {
+  margin: 26px 0 16px;
+  font: 700 clamp(40px, 4.5vw, 68px)/1.02 'Space Grotesk', sans-serif;
+  letter-spacing: 0;
+}
+
+.login-story h1 span { color: var(--primary); }
+.login-story-copy { max-width: 450px; color: var(--muted-foreground); font-size: 16px; line-height: 1.7; }
+.login-highlights { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
+.login-highlights span { border: 1px solid var(--border); background: rgba(18, 26, 23, 0.72); color: #c8d7c9; padding: 8px 12px; font-size: 12px; border-radius: 999px; }
+.login-card { width: 100%; max-width: 460px; justify-self: end; border: 1px solid var(--border); border-radius: 8px; padding: clamp(20px, 3vw, 32px); background: rgba(18, 26, 23, 0.94); box-shadow: 0 28px 80px rgba(0, 0, 0, 0.28); animation: arrive 800ms 100ms both; }
+.login-card-title { margin: 0 0 18px; font: 600 21px 'Space Grotesk', sans-serif; }
+.course-picker { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.course-option { min-width: 0; min-height: 42px; display: flex; align-items: center; gap: 8px; padding: 7px 9px; border: 1px solid var(--border); border-radius: 7px; color: var(--muted-foreground); font-size: 12px; cursor: pointer; transition: border-color 160ms, background 160ms, color 160ms; }
+.course-option.selected { color: var(--foreground); background: rgba(169, 229, 139, 0.1); border-color: var(--primary); }
+.course-option input { accent-color: var(--primary); }
+.course-card { min-width: 0; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px; display: flex; align-items: flex-start; gap: 12px; transition: transform 180ms, border-color 180ms; }
+.course-card:hover { transform: translateY(-3px); border-color: var(--primary); }
+.course-card-icon { width: 42px; height: 42px; border-radius: 8px; display: grid; place-items: center; font-size: 19px; flex: 0 0 auto; }
+.empty-directory { padding: 22px; border: 1px dashed var(--border); border-radius: 8px; color: var(--muted-foreground); font-size: 13px; text-align: center; }
+.people-list { display: flex; flex-direction: column; border-top: 1px solid var(--border); }
+.person-row { min-width: 0; display: flex; align-items: center; gap: 11px; padding: 12px 4px; border-bottom: 1px solid var(--border); }
+.role-label { padding: 4px 8px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted-foreground); font-size: 11px; text-transform: capitalize; }
+.role-form { display: flex; align-items: center; gap: 8px; padding: 14px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; }
+.role-select { min-height: 40px; border: 1px solid var(--border); border-radius: 8px; padding: 0 10px; background: var(--secondary); color: var(--foreground); font: inherit; }
+.section-kicker { color: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: 0.12em; }
+.logo-pupil { transition: cx 100ms ease-out, cy 100ms ease-out; }
+.msg-row { animation: arrive 240ms both; }
+
+@keyframes arrive { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+@media (max-width: 800px) {
+  .login-shell { grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 24px; padding: 28px 18px; overflow-y: auto; }
+  .login-story { text-align: center; }
+  .login-story > div:first-child { justify-content: center; }
+  .login-story h1 { margin: 12px 0; font-size: 40px; }
+  .login-story-copy { margin-inline: auto; font-size: 14px; }
+  .login-highlights { justify-content: center; margin-top: 16px; }
+  .login-highlights span { padding: 6px 9px; }
+  .login-card { justify-self: center; max-width: 480px; }
+}
+
+@media (max-width: 560px) {
+  .login-story h1 { font-size: 34px; }
+  .login-highlights span:last-child { display: none; }
+  .role-form { flex-wrap: wrap; }
+  .role-form input { flex-basis: 100%; }
+  .role-form select { flex: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }
 
 ::-webkit-scrollbar {

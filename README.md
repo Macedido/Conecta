@@ -8,13 +8,14 @@ A aplicação foi construída com React no frontend e Supabase no backend. Usuá
 
 - Autenticação e cadastro de usuários;
 - Perfis com nome, biografia, avatar e banner;
-- Comunidades divididas por matérias e canais;
+- Cadastro com seleção e matrícula em cursos;
+- Comunidades divididas por matérias e canais, com mensagens persistidas no Supabase;
 - Leitura pública das mensagens no modo visitante;
 - Envio e moderação de mensagens para usuários autorizados;
-- Assistente educacional integrado à API da Anthropic Claude;
+- Papéis de proprietário, administrador, professor e aluno, gerenciados no servidor;
+- Assistente educacional integrado a um provedor público de IA sem chave;
 - Catálogo de vídeos educacionais do YouTube;
 - Busca e filtros por matéria;
-- Papéis de usuário, incluindo aluno, professor, administrador e proprietário.
 
 ## Tecnologias
 
@@ -33,7 +34,7 @@ A aplicação foi construída com React no frontend e Supabase no backend. Usuá
 - Supabase Auth;
 - Supabase Storage;
 - KV Store;
-- Anthropic Claude API.
+- API pública Pollinations para respostas de IA, sem chave.
 
 ## Arquitetura
 
@@ -50,7 +51,7 @@ O backend está em `supabase/functions/server/`:
 - `index.tsx`: rotas HTTP da Edge Function;
 - `kv_store.tsx`: persistência de perfis e mensagens no KV Store.
 
-As rotas de perfil, criação de mensagens e IA exigem autenticação. A leitura de mensagens é pública para permitir o funcionamento do modo visitante.
+Cadastro, perfis, cursos, mensagens, diretório de usuários, papéis e IA usam rotas da Edge Function. A leitura de mensagens é pública para o modo visitante; ações de escrita exigem autenticação e são autorizadas no servidor.
 
 ## Executando localmente
 
@@ -81,7 +82,9 @@ O frontend precisa estar conectado a um projeto Supabase. A Edge Function utiliz
 - `ANTHROPIC_API_KEY`;
 - `ANTHROPIC_MODEL` — opcional.
 
-A chave da Anthropic deve ser configurada como segredo da Edge Function e nunca incluída diretamente no código ou enviada ao navegador.
+O proprietário é o usuário `gabrieltmacedo@aluno.colegioapoio.net`; a conta recebe esse papel ao entrar. Apenas ela pode promover usuários já cadastrados a administrador, professor ou aluno. O cadastro cria contas com e-mail confirmado pelo servidor, sem exigir confirmação na caixa de entrada.
+
+A Conecta IA não requer chave. As conversas são encaminhadas pelo servidor ao serviço público Pollinations para gerar respostas; não envie dados pessoais ou informações confidenciais nesse chat. A disponibilidade e os limites desse serviço são definidos pelo provedor.
 
 ## Modo visitante
 

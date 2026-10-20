@@ -3,9 +3,6 @@ import { supabase } from './supabaseClient'
 
 export { supabase } from './supabaseClient'
 
-export const OWNER_EMAIL = 'senhoremail448@gmail.com'
-export const ADMIN_EMAIL = OWNER_EMAIL
-
 export type UserRole = 'owner' | 'admin' | 'professor' | 'aluno'
 
 export interface UserProfile {
@@ -17,6 +14,7 @@ export interface UserProfile {
   avatarDataUrl: string | null
   bannerDataUrl: string | null
   joinedAt: string
+  courses: string[]
 }
 
 const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-b92ddf44`
@@ -109,25 +107,26 @@ export async function authenticate(email: string, password: string): Promise<Use
   }
 }
 
-export async function register(email: string, password: string, name: string): Promise<UserProfile | { error: string }> {
+export async function register(email: string, password: string, name: string, courses: string[]): Promise<UserProfile | { error: string }> {
   if (!email.trim()) return { error: 'Informe um e-mail.' }
   if (!name.trim()) return { error: 'Informe seu nome.' }
   if (password.length < 6) return { error: 'Senha deve ter ao menos 6 caracteres.' }
+  if (courses.length === 0) return { error: 'Escolha ao menos um curso para continuar.' }
 
-  let data
   try {
-    const result = await supabase.auth.signUp({
-      email: email.trim().toLowerCase(),
-      password,
-      options: { data: { full_name: name.trim() } },
+    await publicApi('/signup', {
+      method: 'POST',
+      body: JSON.stringify({ email: email.trim().toLowerCase(), password, name: name.trim(), courses }),
     })
-    data = result.data
-    if (result.error) return { error: authError(result.error.message) }
   } catch (error) {
     return { error: authError(error instanceof Error ? error.message : 'Falha de rede.') }
   }
-  if (!data.session) {
-    return { error: 'Cadastro criado. Confirme o e-mail recebido e depois entre.' }
+
+  try {
+    const { error } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password })
+    if (error) return { error: authError(error.message) }
+  } catch (error) {
+    return { error: authError(error instanceof Error ? error.message : 'Falha de rede.') }
   }
 
   try {
@@ -143,4 +142,18 @@ export async function updateProfile(updates: Partial<Pick<UserProfile, 'name' | 
 
 export async function authorizedApi<T>(path: string, init?: RequestInit): Promise<T> {
   return api<T>(path, init)
+}
+
+export type ManagedUser = Pick<UserProfile, 'id' | 'name' | 'role' | 'joinedAt'> & { email?: string }
+
+export function getUsers(): Promise<ManagedUser[]> {
+  return api<ManagedUser[]>('/users')
+}
+
+export function updateUserRole(email: string, role: Exclude<UserRole, 'owner'>): Promise<ManagedUser> {
+  return api<ManagedUser>('/users/role', { method: 'PUT', body: JSON.stringify({ email, role }) })
+}
+
+export function joinCourse(courseId: string): Promise<UserProfile> {
+  return api<UserProfile>('/courses', { method: 'POST', body: JSON.stringify({ courseId }) })
 }

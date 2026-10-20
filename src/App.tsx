@@ -1,19 +1,18 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import Logo from './components/Logo'
 import { COMMUNITIES } from './data/communities'
-import { getDemoMessages } from './data/demoMessages'
 import { VIDEOS, SUBJECTS } from './data/videos'
 import type { Subject } from './data/videos'
 import { sendAIMessage } from './services/aiService'
 import type { AIMessage } from './services/aiService'
 import {
-  authenticate, register, clearSession, getSession, updateProfile,
+  authenticate, register, clearSession, getSession, updateProfile, joinCourse, getUsers, updateUserRole,
 } from './services/authService'
-import type { UserProfile } from './services/authService'
+import type { ManagedUser, UserProfile, UserRole } from './services/authService'
 import { createMessage, getMessages, removeMessage } from './services/chatService'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type Tab = 'communities' | 'ai' | 'video' | 'explore' | 'profile'
+type Tab = 'communities' | 'ai' | 'video' | 'explore' | 'profile' | 'admin'
 type ChatMessage = { id: string; author: string; avatar: string; text: string; time: string; isAI?: boolean }
 
 const now = () => new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
@@ -67,6 +66,7 @@ function LoginScreen({ onLogin, onBrowse }: { onLogin: (p: UserProfile) => void;
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
+  const [selectedCourses, setSelectedCourses] = useState<string[]>([])
   const [showPass, setShowPass] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -78,7 +78,7 @@ function LoginScreen({ onLogin, onBrowse }: { onLogin: (p: UserProfile) => void;
     try {
       const result = await (mode === 'login'
         ? authenticate(email, password)
-        : register(email, password, name))
+        : register(email, password, name, selectedCourses))
       if ('error' in result) { setError(result.error); return }
       onLogin(result)
     } catch (submitError) {
@@ -100,16 +100,18 @@ function LoginScreen({ onLogin, onBrowse }: { onLogin: (p: UserProfile) => void;
   )
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--background)', padding: 20 }}>
-      <div style={{ width: '100%', maxWidth: 420 }}>
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+    <div className="login-shell">
+      <section className="login-story">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <Logo size={64} />
+          <span style={{ font: "700 20px 'Space Grotesk', sans-serif" }}>CONECTA</span>
           </div>
-          <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0 }}>Conecta</h1>
-          <p style={{ fontSize: 14, color: 'var(--muted-foreground)', margin: '6px 0 0' }}>Comunidades, IA e vídeos educacionais</p>
-        </div>
-        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, padding: 28 }}>
+        <h1>Aprender junto <span>muda tudo.</span></h1>
+        <p className="login-story-copy">Um espaço vivo para estudar, trocar ideias e avançar no seu ritmo, com pessoas que também querem chegar mais longe.</p>
+        <div className="login-highlights"><span>✳ Cursos por interesse</span><span>↗ Comunidades reais</span><span>◉ Apoio inteligente</span></div>
+      </section>
+      <div className="login-card">
+          <h2 className="login-card-title">{mode === 'login' ? 'Boas-vindas de volta' : 'Comece por aqui'}</h2>
           <div style={{ display: 'flex', background: 'var(--muted)', borderRadius: 10, padding: 3, marginBottom: 24 }}>
             {(['login', 'signup'] as const).map(m => (
               <button key={m} onClick={() => { setMode(m); setError('') }}
@@ -120,6 +122,22 @@ function LoginScreen({ onLogin, onBrowse }: { onLogin: (p: UserProfile) => void;
           </div>
           <form onSubmit={handle} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {mode === 'signup' && field('Nome completo', name, setName)}
+            {mode === 'signup' && (
+              <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
+                <legend style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: 8, textTransform: 'uppercase' }}>Escolha seus cursos</legend>
+                <div className="course-picker">
+                  {COMMUNITIES.map(course => {
+                    const selected = selectedCourses.includes(course.id)
+                    return (
+                      <label key={course.id} className={`course-option${selected ? ' selected' : ''}`}>
+                        <input type="checkbox" checked={selected} onChange={() => setSelectedCourses(current => selected ? current.filter(id => id !== course.id) : [...current, course.id])} />
+                        <span>{course.emoji}</span><span>{course.name}</span>
+                      </label>
+                    )
+                  })}
+                </div>
+              </fieldset>
+            )}
             {field('E-mail', email, setEmail, 'email')}
             {field('Senha', password, setPassword, showPass ? 'text' : 'password',
               <button type="button" onClick={() => setShowPass(s => !s)}
@@ -143,9 +161,8 @@ function LoginScreen({ onLogin, onBrowse }: { onLogin: (p: UserProfile) => void;
             Explorar sem entrar
           </button>
           <p style={{ margin: '10px 0 0', textAlign: 'center', color: 'var(--muted-foreground)', fontSize: 11, lineHeight: 1.4 }}>
-            No modo visitante você pode visualizar comunidades, mensagens e vídeos.
+            No modo visitante você pode explorar cursos e vídeos disponíveis.
           </p>
-        </div>
       </div>
     </div>
   )
@@ -266,11 +283,16 @@ export default function App() {
   const [playingVideoId, setPlayingVideoId] = useState<string | null>(null)
   const [showEditProfile, setShowEditProfile] = useState(false)
   const [exploreSearch, setExploreSearch] = useState('')
+  const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([])
+  const [roleEmail, setRoleEmail] = useState('')
+  const [roleToAssign, setRoleToAssign] = useState<Exclude<UserRole, 'owner'>>('professor')
+  const [directoryError, setDirectoryError] = useState('')
+  const [roleSaving, setRoleSaving] = useState(false)
   const msgEndRef = useRef<HTMLDivElement>(null)
   const aiEndRef = useRef<HTMLDivElement>(null)
 
   const channelKey = `${activeCommunity.id}::${activeChannel.id}`
-  const messages = channelMessages[channelKey] ?? getDemoMessages(channelKey)
+  const messages = channelMessages[channelKey] ?? []
 
   useEffect(() => {
     getSession().then(setUser).finally(() => setSessionLoading(false))
@@ -280,16 +302,20 @@ export default function App() {
     let active = true
     getMessages(channelKey)
       .then(items => {
-        if (active) setChannelMessages(prev => ({
-          ...prev,
-          [channelKey]: items.length > 0 ? items : getDemoMessages(channelKey),
-        }))
+        if (active) setChannelMessages(prev => ({ ...prev, [channelKey]: items }))
       })
       .catch(() => {
-        if (active) setChannelMessages(prev => ({ ...prev, [channelKey]: getDemoMessages(channelKey) }))
+        if (active) setChannelMessages(prev => ({ ...prev, [channelKey]: [] }))
       })
     return () => { active = false }
   }, [channelKey])
+
+  useEffect(() => {
+    if (!user || (activeTab !== 'explore' && activeTab !== 'admin')) return
+    getUsers().then(setManagedUsers).catch(error => {
+      setDirectoryError(error instanceof Error ? error.message : 'Não foi possível carregar as contas.')
+    })
+  }, [user, activeTab])
 
   useEffect(() => { msgEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
   useEffect(() => { aiEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [aiChat])
@@ -302,9 +328,55 @@ export default function App() {
   }, [])
 
   if (sessionLoading) return <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', color: 'var(--muted-foreground)' }}>Carregando Conecta...</div>
-  if (!user && !isGuest) return <LoginScreen onLogin={profile => { setUser(profile); setIsGuest(false) }} onBrowse={() => setIsGuest(true)} />
+  if (!user && !isGuest) return <LoginScreen onLogin={profile => {
+    setUser(profile)
+    setIsGuest(false)
+    const firstCourse = COMMUNITIES.find(course => course.id === profile.courses[0])
+    if (firstCourse) {
+      setActiveCommunity(firstCourse)
+      setActiveChannel(firstCourse.channels[0])
+    }
+  }} onBrowse={() => setIsGuest(true)} />
 
   const isAdmin = !!user && (user.role === 'owner' || user.role === 'admin')
+  const canModerate = isAdmin || user?.role === 'professor'
+  const canAccessAllCourses = !!user && ['owner', 'admin', 'professor'].includes(user.role)
+  const isEnrolled = !!user && (canAccessAllCourses || user.courses.includes(activeCommunity.id))
+
+  const enterCourse = async (courseId: string) => {
+    if (!user) {
+      setIsGuest(false)
+      return
+    }
+    try {
+      const updated = await joinCourse(courseId)
+      setUser(updated)
+      const course = COMMUNITIES.find(item => item.id === courseId)
+      if (course) {
+        setActiveCommunity(course)
+        setActiveChannel(course.channels[0])
+        setActiveTab('communities')
+      }
+      setDirectoryError('')
+    } catch (error) {
+      setDirectoryError(error instanceof Error ? error.message : 'Não foi possível entrar no curso.')
+    }
+  }
+
+  const assignRole = async (event: React.FormEvent) => {
+    event.preventDefault()
+    setRoleSaving(true)
+    setDirectoryError('')
+    try {
+      await updateUserRole(roleEmail, roleToAssign)
+      setRoleEmail('')
+      setManagedUsers(await getUsers())
+    } catch (error) {
+      setDirectoryError(error instanceof Error ? error.message : 'Não foi possível alterar o papel.')
+    } finally {
+      setRoleSaving(false)
+    }
+  }
 
   // ── Send chat message ──────────────────────────────────────────────────────
   const sendChat = async () => {
@@ -315,7 +387,7 @@ export default function App() {
       const msg = await createMessage(channelKey, text)
       setChannelMessages(prev => ({
         ...prev,
-        [channelKey]: [...(prev[channelKey] ?? getDemoMessages(channelKey)), msg],
+        [channelKey]: [...(prev[channelKey] ?? []), msg],
       }))
     } catch {
       setChatInput(text)
@@ -369,6 +441,7 @@ export default function App() {
     { tab: 'video', label: 'Vídeos', icon: <IVideo /> },
     { tab: 'explore', label: 'Explorar', icon: <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg> },
     { tab: 'profile', label: 'Perfil', icon: <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> },
+    ...(user?.role === 'owner' ? [{ tab: 'admin' as const, label: 'Gestão', icon: <IShield /> }] : []),
   ] satisfies { tab: Tab; icon: React.ReactNode; label: string }[]).filter(item => user || item.tab !== 'profile')
 
   // ── Styles helpers ─────────────────────────────────────────────────────────
@@ -376,7 +449,7 @@ export default function App() {
   const btnPrimary: React.CSSProperties = { padding: '9px 16px', borderRadius: 8, background: 'var(--primary)', border: 'none', color: 'var(--primary-foreground)', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }
 
   return (
-    <div style={{ display: 'flex', height: '100vh', background: 'var(--background)', color: 'var(--foreground)', fontFamily: "'Outfit', sans-serif", overflow: 'hidden' }}>
+    <div style={{ display: 'flex', height: '100vh', background: 'var(--background)', color: 'var(--foreground)', fontFamily: "'DM Sans', sans-serif", overflow: 'hidden' }}>
 
       {/* ── Nav rail ── */}
       <nav style={{ width: 66, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '12px 0', gap: 3, background: 'var(--card)', borderRight: '1px solid var(--border)', flexShrink: 0 }}>
@@ -405,7 +478,7 @@ export default function App() {
           <aside style={{ width: 232, background: 'var(--muted)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
             <div style={{ flex: 1, overflowY: 'auto', padding: '14px 10px' }}>
               <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted-foreground)', padding: '0 4px', marginBottom: 8 }}>Comunidades</div>
-              {COMMUNITIES.map(c => (
+              {COMMUNITIES.filter(course => canAccessAllCourses || user?.courses.includes(course.id)).map(c => (
                 <button key={c.id} onClick={() => { setActiveCommunity(c); setActiveChannel(c.channels[0]) }}
                   style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '7px 8px', borderRadius: 8, border: 'none', cursor: 'pointer', marginBottom: 1, background: activeCommunity.id === c.id ? 'var(--secondary)' : 'transparent', color: activeCommunity.id === c.id ? 'var(--foreground)' : 'var(--muted-foreground)', transition: 'all 0.12s', fontFamily: 'inherit' }}>
                   <span style={{ width: 32, height: 32, borderRadius: 9, background: c.color + '20', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flexShrink: 0, border: `2px solid ${activeCommunity.id === c.id ? c.color : 'transparent'}`, transition: 'border-color 0.12s' }}>{c.emoji}</span>
@@ -466,7 +539,7 @@ export default function App() {
                     const showHead = i === 0 || messages[i - 1].author !== msg.author
                     return (
                       <div key={msg.id} className="msg-row" style={{ display: 'flex', gap: 11, padding: showHead ? '9px 0 2px' : '1px 0', alignItems: 'flex-start', position: 'relative' }}
-                        onMouseEnter={e => { if (isAdmin) { const btn = e.currentTarget.querySelector<HTMLButtonElement>('.del-btn'); if (btn) btn.style.display = 'flex' }}}
+                        onMouseEnter={e => { if (canModerate) { const btn = e.currentTarget.querySelector<HTMLButtonElement>('.del-btn'); if (btn) btn.style.display = 'flex' }}}
                         onMouseLeave={e => { const btn = e.currentTarget.querySelector<HTMLButtonElement>('.del-btn'); if (btn) btn.style.display = 'none' }}>
                         {showHead
                           ? <Avatar src={null} name={msg.author} size={36} />
@@ -479,7 +552,7 @@ export default function App() {
                           </div>}
                           <div style={{ fontSize: 14, lineHeight: 1.5, wordBreak: 'break-word' }}>{msg.text}</div>
                         </div>
-                        {isAdmin && (
+                        {canModerate && (
                           <button className="del-btn" onClick={() => deleteMessage(msg.id)}
                             style={{ display: 'none', position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)', background: '#ef4444', border: 'none', borderRadius: 6, color: '#fff', padding: '3px 8px', fontSize: 11, cursor: 'pointer', alignItems: 'center', gap: 3 }}>
                             🗑 Apagar
@@ -491,15 +564,15 @@ export default function App() {
               }
               <div ref={msgEndRef} />
             </div>
-            {user
+            {user && isEnrolled
               ? <div style={{ padding: '10px 18px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8 }}>
                   <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendChat()}
                     placeholder={`Mensagem em #${activeChannel.name}`} style={inputStyle} />
                   <button onClick={sendChat} style={{ ...btnPrimary, width: 40, height: 40, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><ISend /></button>
                 </div>
-              : <div style={{ padding: '12px 18px', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, color: 'var(--muted-foreground)', fontSize: 13 }}>
-                  Entre para participar da conversa.
-                  <button onClick={() => setIsGuest(false)} style={{ ...btnPrimary, padding: '7px 14px' }}>Entrar</button>
+                : <div style={{ padding: '12px 18px', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, color: 'var(--muted-foreground)', fontSize: 13 }}>
+                  {user ? 'Entre neste curso para participar da conversa.' : 'Entre para participar da conversa.'}
+                  <button onClick={() => user ? enterCourse(activeCommunity.id) : setIsGuest(false)} style={{ ...btnPrimary, padding: '7px 14px' }}>{user ? 'Entrar no curso' : 'Entrar'}</button>
                 </div>
             }
           </main>
@@ -667,28 +740,72 @@ export default function App() {
             <section style={{ marginBottom: 36 }}>
               <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 14 }}>Comunidades</h2>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
-                {COMMUNITIES.filter(c => !exploreSearch || c.name.toLowerCase().includes(exploreSearch.toLowerCase())).map(c => (
-                  <div key={c.id} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, display: 'flex', gap: 12, alignItems: 'center' }}>
-                    <span style={{ width: 42, height: 42, borderRadius: 12, background: c.color + '22', border: `2px solid ${c.color}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>{c.emoji}</span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 2 }}>{c.name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 9, lineHeight: 1.3 }}>{c.description}</div>
-                      <button onClick={() => { setActiveCommunity(c); setActiveChannel(c.channels[0]); setActiveTab('communities') }}
-                        style={{ ...btnPrimary, padding: '4px 12px', fontSize: 12 }}>Entrar</button>
+                {COMMUNITIES.filter(c => !exploreSearch || c.name.toLowerCase().includes(exploreSearch.toLowerCase())).map(c => {
+                  const enrolled = canAccessAllCourses || !!user?.courses.includes(c.id)
+                  return (
+                    <div key={c.id} className="course-card" style={{ borderTop: `2px solid ${c.color}` }}>
+                      <span className="course-card-icon" style={{ background: c.color + '22' }}>{c.emoji}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>{c.name}</div>
+                        <div style={{ fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 12, lineHeight: 1.4 }}>{c.description}</div>
+                        <button onClick={() => enrolled ? (setActiveCommunity(c), setActiveChannel(c.channels[0]), setActiveTab('communities')) : enterCourse(c.id)}
+                          style={{ ...btnPrimary, padding: '6px 12px', fontSize: 12 }}>{enrolled ? 'Abrir curso' : user ? 'Entrar no curso' : 'Fazer login'}</button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </section>
 
             <section>
               <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 14 }}>Pessoas</h2>
-              <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: '32px 24px', textAlign: 'center', color: 'var(--muted-foreground)' }}>
-                <div style={{ fontSize: 32, marginBottom: 10 }}>👥</div>
-                <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4, color: 'var(--foreground)' }}>Nenhuma pessoa disponível ainda.</div>
-                <div style={{ fontSize: 13 }}>Quando outros usuários se cadastrarem, eles aparecerão aqui.</div>
-              </div>
+              {directoryError && <p role="alert" style={{ color: '#ef7777', fontSize: 13 }}>{directoryError}</p>}
+              {!user ? <div className="empty-directory">Entre para ver as pessoas cadastradas na plataforma.</div> : managedUsers.filter(person => person.id !== user.id).length === 0
+                ? <div className="empty-directory">Nenhuma outra conta cadastrada ainda.</div>
+                : <div className="people-list">{managedUsers.filter(person => person.id !== user.id).map(person => (
+                    <div key={person.id} className="person-row">
+                      <Avatar name={person.name} size={38} />
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontWeight: 600, fontSize: 13 }}>{person.name}</div>
+                        {person.email && <div style={{ color: 'var(--muted-foreground)', fontSize: 12 }}>{person.email}</div>}
+                      </div>
+                      <span className="role-label">{person.role}</span>
+                    </div>
+                  ))}</div>}
             </section>
+          </div>
+        </main>
+      )}
+
+      {activeTab === 'admin' && user?.role === 'owner' && (
+        <main style={{ flex: 1, overflowY: 'auto', padding: '28px' }}>
+          <div style={{ maxWidth: 820, margin: '0 auto' }}>
+            <div className="section-kicker">PAINEL DO PROPRIETÁRIO</div>
+            <h1 style={{ fontSize: 26, fontWeight: 800, margin: '6px 0 4px' }}>Gestão de pessoas</h1>
+            <p style={{ color: 'var(--muted-foreground)', fontSize: 13, margin: '0 0 24px' }}>Promova contas já cadastradas para administração ou docência.</p>
+            <form onSubmit={assignRole} className="role-form">
+              <input required type="email" value={roleEmail} onChange={event => setRoleEmail(event.target.value)} placeholder="E-mail da conta existente" style={inputStyle} />
+              <select value={roleToAssign} onChange={event => setRoleToAssign(event.target.value as Exclude<UserRole, 'owner'>)} className="role-select">
+                <option value="professor">Professor</option>
+                <option value="admin">Administrador</option>
+                <option value="aluno">Aluno</option>
+              </select>
+              <button disabled={roleSaving} style={btnPrimary}>{roleSaving ? 'Salvando...' : 'Atualizar papel'}</button>
+            </form>
+            {directoryError && <p role="alert" style={{ color: '#ef7777', fontSize: 13 }}>{directoryError}</p>}
+            <div className="people-list" style={{ marginTop: 18 }}>
+              {managedUsers.map(person => (
+                <div key={person.id} className="person-row">
+                  <Avatar name={person.name} size={38} />
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13 }}>{person.name}{person.id === user.id ? ' (você)' : ''}</div>
+                    {person.email && <div style={{ color: 'var(--muted-foreground)', fontSize: 12 }}>{person.email}</div>}
+                  </div>
+                  <span className="role-label">{person.role}</span>
+                </div>
+              ))}
+              {managedUsers.length === 0 && <div className="empty-directory">Nenhuma conta cadastrada.</div>}
+            </div>
           </div>
         </main>
       )}
@@ -712,7 +829,7 @@ export default function App() {
                 <div>
                   <div style={{ fontSize: 22, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>
                     {user.name}
-                    {isAdmin && <span style={{ fontSize: 12, padding: '2px 8px', borderRadius: 20, background: '#f59e0b22', border: '1px solid #f59e0b', color: '#f59e0b', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}><IShield /> Admin</span>}
+                    {user.role !== 'aluno' && <span style={{ fontSize: 12, padding: '2px 8px', borderRadius: 20, background: '#f0a35e18', border: '1px solid #f0a35e', color: '#f0a35e', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}><IShield />{user.role === 'owner' ? 'Proprietário' : user.role === 'professor' ? 'Professor' : 'Administrador'}</span>}
                   </div>
                   <div style={{ fontSize: 13, color: 'var(--muted-foreground)', marginTop: 4 }}>
                     {user.email} · Membro desde {new Date(user.joinedAt).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
@@ -729,13 +846,18 @@ export default function App() {
               <div style={{ marginBottom: 22 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--muted-foreground)', marginBottom: 10 }}>Comunidades</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-                  {COMMUNITIES.map(c => (
+                  {COMMUNITIES.map(c => {
+                    const enrolled = canAccessAllCourses || user.courses.includes(c.id)
+                    return (
                     <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 9, background: 'var(--muted)', border: '1px solid var(--border)' }}>
                       <span style={{ fontSize: 16 }}>{c.emoji}</span>
                       <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>{c.name}</span>
-                      <span style={{ width: 7, height: 7, borderRadius: '50%', background: c.color }} />
+                      {enrolled
+                        ? <span className="role-label" style={{ color: c.color }}>Matriculado</span>
+                        : <button onClick={() => enterCourse(c.id)} style={{ ...btnPrimary, padding: '4px 10px', fontSize: 11 }}>Entrar</button>}
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
 
