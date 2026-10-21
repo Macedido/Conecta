@@ -25,9 +25,6 @@ const IVol = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" s
 const ISend = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
 const ISearch = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
 const IPlus = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-const IEye = ({ show }: { show: boolean }) => show
-  ? <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-  : <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
 const IClose = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
 const IEdit = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
 const ILogout = () => <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
@@ -104,7 +101,7 @@ function LoginScreen({ onLogin, onBrowse }: { onLogin: (p: UserProfile) => void;
     <div className="login-shell">
       <section className="login-story">
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <Logo size={64} />
+            <Logo size={64} onEyesClick={() => setShowPass(show => !show)} eyesLabel={showPass ? 'Ocultar senha' : 'Mostrar senha'} />
           <span style={{ font: "700 20px 'Space Grotesk', sans-serif" }}>CONECTA</span>
           </div>
         <h1>Aprender junto <span>muda tudo.</span></h1>
@@ -140,12 +137,7 @@ function LoginScreen({ onLogin, onBrowse }: { onLogin: (p: UserProfile) => void;
               </fieldset>
             )}
             {field('E-mail', email, setEmail, 'email')}
-            {field('Senha', password, setPassword, showPass ? 'text' : 'password',
-              <button type="button" onClick={() => setShowPass(s => !s)}
-                style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted-foreground)', display: 'flex', padding: 0 }}>
-                <IEye show={showPass} />
-              </button>
-            )}
+            {field('Senha', password, setPassword, showPass ? 'text' : 'password')}
             {error && <div style={{ fontSize: 13, color: '#ef4444', background: '#ef444418', border: '1px solid #ef444440', borderRadius: 8, padding: '9px 12px' }}>{error}</div>}
             <button type="submit" disabled={loading}
               style={{ padding: '12px 0', borderRadius: 10, background: loading ? 'var(--muted)' : 'var(--primary)', border: 'none', color: loading ? 'var(--muted-foreground)' : 'var(--primary-foreground)', fontSize: 14, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit', marginTop: 4 }}>

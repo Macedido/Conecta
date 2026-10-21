@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 
-export default function Logo({ size = 40 }: { size?: number }) {
+export default function Logo({ size = 40, onEyesClick, eyesLabel }: { size?: number; onEyesClick?: () => void; eyesLabel?: string }) {
   const leftEye = useRef<SVGCircleElement>(null)
   const rightEye = useRef<SVGCircleElement>(null)
 
@@ -28,7 +28,18 @@ export default function Logo({ size = 40 }: { size?: number }) {
       viewBox="0 0 100 92"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      aria-label="Conecta"
+      role={onEyesClick ? 'button' : undefined}
+      tabIndex={onEyesClick ? 0 : undefined}
+      aria-label={onEyesClick ? eyesLabel : 'Conecta'}
+      title={onEyesClick ? eyesLabel : undefined}
+      onClick={onEyesClick}
+      onKeyDown={event => {
+        if (onEyesClick && (event.key === 'Enter' || event.key === ' ')) {
+          event.preventDefault()
+          onEyesClick()
+        }
+      }}
+      style={onEyesClick ? { cursor: 'pointer' } : undefined}
     >
       {/* Speech bubble outline — thick green stroke, transparent fill */}
       <path
