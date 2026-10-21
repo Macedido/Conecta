@@ -385,7 +385,13 @@ export default function App() {
   const messages = channelMessages[channelKey] ?? []
 
   useEffect(() => {
-    getSession().then(setUser).finally(() => setSessionLoading(false))
+    getSession()
+      .then(setUser)
+      .catch(error => {
+        console.error('Não foi possível restaurar a sessão:', error)
+        setUser(null)
+      })
+      .finally(() => setSessionLoading(false))
   }, [])
 
   useEffect(() => {
