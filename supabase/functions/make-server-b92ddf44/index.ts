@@ -94,11 +94,11 @@ app.use(
   }),
 );
 
-app.get("/communities", async (c) => {
+app.get("/make-server-b92ddf44/communities", async (c) => {
   return c.json(await kv.getByPrefix("community:") as unknown[]);
 });
 
-app.post("/communities", async (c) => {
+app.post("/make-server-b92ddf44/communities", async (c) => {
   const user = await authenticatedUser(c);
   if (!user) return c.json({ error: "Entre para criar uma comunidade." }, 401);
   if ((await profileFor(user)).role !== "owner") return c.json({ error: "Apenas o proprietário pode criar comunidades." }, 403);
@@ -122,11 +122,11 @@ app.post("/communities", async (c) => {
 });
 
 // Health check endpoint
-app.get("/health", (c) => {
+app.get("/make-server-b92ddf44/health", (c) => {
   return c.json({ status: "ok" });
 });
 
-app.post("/signup", async (c) => {
+app.post("/make-server-b92ddf44/signup", async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   const name = typeof body.name === "string" ? body.name.trim() : "";
@@ -150,13 +150,13 @@ app.post("/signup", async (c) => {
   return c.json({ id: profile.id });
 });
 
-app.get("/profile", async (c) => {
+app.get("/make-server-b92ddf44/profile", async (c) => {
   const user = await authenticatedUser(c);
   if (!user) return c.json({ error: "Sessão inválida." }, 401);
   return c.json(await profileFor(user));
 });
 
-app.put("/profile", async (c) => {
+app.put("/make-server-b92ddf44/profile", async (c) => {
   const user = await authenticatedUser(c);
   if (!user) return c.json({ error: "Sessão inválida." }, 401);
   const profile = await profileFor(user);
@@ -169,7 +169,7 @@ app.put("/profile", async (c) => {
   return c.json(profile);
 });
 
-app.post("/courses", async (c) => {
+app.post("/make-server-b92ddf44/courses", async (c) => {
   const user = await authenticatedUser(c);
   if (!user) return c.json({ error: "Entre para participar de um curso." }, 401);
   const body = await c.req.json().catch(() => ({}));
@@ -182,7 +182,7 @@ app.post("/courses", async (c) => {
   return c.json(profile);
 });
 
-app.get("/users", async (c) => {
+app.get("/make-server-b92ddf44/users", async (c) => {
   const user = await authenticatedUser(c);
   if (!user) return c.json({ error: "Sessão inválida." }, 401);
   const requester = await profileFor(user);
@@ -196,7 +196,7 @@ app.get("/users", async (c) => {
   })));
 });
 
-app.put("/users/role", async (c) => {
+app.put("/make-server-b92ddf44/users/role", async (c) => {
   const user = await authenticatedUser(c);
   if (!user) return c.json({ error: "Sessão inválida." }, 401);
   if ((await profileFor(user)).role !== "owner") return c.json({ error: "Apenas o proprietário pode alterar papéis." }, 403);
@@ -220,14 +220,14 @@ app.put("/users/role", async (c) => {
   return c.json({ id: target.id, email: target.email, role });
 });
 
-app.get("/messages", async (c) => {
+app.get("/make-server-b92ddf44/messages", async (c) => {
   const channel = c.req.query("channel") ?? "";
   if (!/^[a-z0-9-]+::[a-z0-9-]+$/.test(channel)) return c.json({ error: "Canal inválido." }, 400);
   const items = await kv.getByPrefix(`message:${channel}:`);
   return c.json(items.sort((a: any, b: any) => a.createdAt.localeCompare(b.createdAt)));
 });
 
-app.post("/messages", async (c) => {
+app.post("/make-server-b92ddf44/messages", async (c) => {
   const user = await authenticatedUser(c);
   if (!user) return c.json({ error: "Entre para enviar mensagens." }, 401);
   const body = await c.req.json().catch(() => ({}));
@@ -256,7 +256,7 @@ app.post("/messages", async (c) => {
   return c.json(message);
 });
 
-app.delete("/messages/:id", async (c) => {
+app.delete("/make-server-b92ddf44/messages/:id", async (c) => {
   const user = await authenticatedUser(c);
   if (!user) return c.json({ error: "Sessão inválida." }, 401);
   const channel = c.req.query("channel") ?? "";
@@ -272,7 +272,7 @@ app.delete("/messages/:id", async (c) => {
   return c.json({ ok: true });
 });
 
-app.post("/ai", async (c) => {
+app.post("/make-server-b92ddf44/ai", async (c) => {
   const user = await authenticatedUser(c);
   if (!user) return c.json({ error: "Entre para conversar com a Conecta IA." }, 401);
   const body = await c.req.json().catch(() => ({}));
