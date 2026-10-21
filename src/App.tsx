@@ -1,12 +1,13 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import Logo from './components/Logo'
 import { COMMUNITIES } from './data/communities'
+import type { Community } from './data/communities'
 import { VIDEOS, SUBJECTS } from './data/videos'
 import type { Subject } from './data/videos'
 import { sendAIMessage } from './services/aiService'
 import type { AIMessage } from './services/aiService'
 import {
-  authenticate, register, clearSession, getSession, updateProfile, joinCourse, getUsers, updateUserRole,
+  authenticate, register, clearSession, getSession, updateProfile, joinCourse, getUsers, updateUserRole, listCommunities, createCommunity,
 } from './services/authService'
 import type { ManagedUser, UserProfile, UserRole } from './services/authService'
 import { createMessage, getMessages, removeMessage } from './services/chatService'
@@ -259,12 +260,100 @@ function EditProfileModal({ user, onSave, onClose }: { user: UserProfile; onSave
   )
 }
 
+function CreateCommunityModal({ onCreate, onClose }: { onCreate: (community: Community) => Promise<void>; onClose: () => void }) {
+  const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
+  const [emoji, setEmoji] = useState('📚')
+  const [logo, setLogo] = useState<string | null>(null)
+  const [banner, setBanner] = useState<string | null>(null)
+  const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const readImage = (file: File | undefined, setter: (value: string | null) => void) => {
+    if (!file) return
+    if (file.size > 1_500_000) {
+      setError('As imagens devem ter no máximo 1,5 MB.')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = event => setter(typeof event.target?.result === 'string' ? event.target.result : null)
+    reader.readAsDataURL(file)
+    setError('')
+  }
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    const id = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48)
+    if (!name.trim() || !id) { setError('Informe um nome válido para a comunidade.'); return }
+    setSaving(true)
+    setError('')
+    try {
+      await onCreate({
+        id,
+        name: name.trim(),
+        description: description.trim(),
+        emoji,
+        color: '#a9e58b',
+        logoDataUrl: logo,
+        bannerDataUrl: banner,
+        channels: [
+          { id: 'geral', name: 'geral', type: 'text' },
+          { id: 'duvidas', name: 'dúvidas', type: 'text' },
+          { id: 'estudos', name: 'estudos', type: 'text' },
+          { id: 'sala-voz', name: 'sala de voz', type: 'voice' },
+        ],
+      })
+    } catch (createError) {
+      setError(createError instanceof Error ? createError.message : 'Não foi possível criar a comunidade.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const fieldStyle: React.CSSProperties = { width: '100%', background: 'var(--muted)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px', color: 'var(--foreground)', fontSize: 14, outline: 'none', fontFamily: 'inherit' }
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 100, padding: 16, background: 'rgba(0,0,0,0.72)', display: 'grid', placeItems: 'center' }}>
+      <form onSubmit={submit} style={{ width: '100%', maxWidth: 480, maxHeight: '90vh', overflowY: 'auto', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: 22, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <strong style={{ fontSize: 17 }}>Nova comunidade</strong>
+          <button type="button" aria-label="Fechar" onClick={onClose} style={{ background: 'none', border: 0, color: 'var(--muted-foreground)', cursor: 'pointer', display: 'flex' }}><IClose /></button>
+        </div>
+        <label style={{ display: 'grid', gap: 6, fontSize: 12, color: 'var(--muted-foreground)' }}>Nome da comunidade
+          <input required maxLength={60} value={name} onChange={event => setName(event.target.value)} placeholder="Ex.: Clube de Ciências" style={fieldStyle} />
+        </label>
+        <label style={{ display: 'grid', gap: 6, fontSize: 12, color: 'var(--muted-foreground)' }}>Descrição
+          <textarea maxLength={240} value={description} onChange={event => setDescription(event.target.value)} rows={2} placeholder="O que as pessoas vão encontrar aqui?" style={{ ...fieldStyle, resize: 'vertical' }} />
+        </label>
+        <label style={{ display: 'grid', gap: 6, fontSize: 12, color: 'var(--muted-foreground)' }}>Ícone
+          <input value={emoji} onChange={event => setEmoji(event.target.value)} maxLength={8} style={fieldStyle} />
+        </label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <label style={{ display: 'grid', gap: 7, fontSize: 12, color: 'var(--muted-foreground)' }}>Logo
+            <input type="file" accept="image/*" onChange={event => readImage(event.target.files?.[0], setLogo)} />
+            {logo && <img src={logo} alt="Prévia da logo" style={{ width: 54, height: 54, objectFit: 'cover', borderRadius: 10 }} />}
+          </label>
+          <label style={{ display: 'grid', gap: 7, fontSize: 12, color: 'var(--muted-foreground)' }}>Banner
+            <input type="file" accept="image/*" onChange={event => readImage(event.target.files?.[0], setBanner)} />
+            {banner && <img src={banner} alt="Prévia do banner" style={{ width: '100%', height: 54, objectFit: 'cover', borderRadius: 6 }} />}
+          </label>
+        </div>
+        {error && <div role="alert" style={{ color: '#ef4444', fontSize: 13 }}>{error}</div>}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <button type="button" onClick={onClose} style={{ padding: '9px 14px', border: '1px solid var(--border)', borderRadius: 8, background: 'transparent', color: 'var(--foreground)', cursor: 'pointer', fontFamily: 'inherit' }}>Cancelar</button>
+          <button type="submit" disabled={saving} style={{ padding: '9px 14px', border: 0, borderRadius: 8, background: 'var(--primary)', color: 'var(--primary-foreground)', fontWeight: 700, cursor: saving ? 'wait' : 'pointer', fontFamily: 'inherit' }}>{saving ? 'Criando...' : 'Criar comunidade'}</button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
 // ─── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [user, setUser] = useState<UserProfile | null>(null)
   const [isGuest, setIsGuest] = useState(false)
   const [sessionLoading, setSessionLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<Tab>('communities')
+  const [communities, setCommunities] = useState<Community[]>(COMMUNITIES)
   const [activeCommunity, setActiveCommunity] = useState(COMMUNITIES[0])
   const [activeChannel, setActiveChannel] = useState(COMMUNITIES[0].channels[0])
   const [channelMessages, setChannelMessages] = useState<Record<string, ChatMessage[]>>({})
@@ -282,6 +371,7 @@ export default function App() {
   const [videoSearch, setVideoSearch] = useState('')
   const [playingVideoId, setPlayingVideoId] = useState<string | null>(null)
   const [showEditProfile, setShowEditProfile] = useState(false)
+  const [showCreateCommunity, setShowCreateCommunity] = useState(false)
   const [exploreSearch, setExploreSearch] = useState('')
   const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([])
   const [roleEmail, setRoleEmail] = useState('')
@@ -296,6 +386,12 @@ export default function App() {
 
   useEffect(() => {
     getSession().then(setUser).finally(() => setSessionLoading(false))
+  }, [])
+
+  useEffect(() => {
+    listCommunities().then(custom => {
+      setCommunities([...COMMUNITIES, ...custom.filter(item => !COMMUNITIES.some(base => base.id === item.id))])
+    }).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -331,7 +427,7 @@ export default function App() {
   if (!user && !isGuest) return <LoginScreen onLogin={profile => {
     setUser(profile)
     setIsGuest(false)
-    const firstCourse = COMMUNITIES.find(course => course.id === profile.courses[0])
+    const firstCourse = communities.find(course => course.id === profile.courses[0])
     if (firstCourse) {
       setActiveCommunity(firstCourse)
       setActiveChannel(firstCourse.channels[0])
@@ -351,7 +447,7 @@ export default function App() {
     try {
       const updated = await joinCourse(courseId)
       setUser(updated)
-      const course = COMMUNITIES.find(item => item.id === courseId)
+      const course = communities.find(item => item.id === courseId)
       if (course) {
         setActiveCommunity(course)
         setActiveChannel(course.channels[0])
@@ -361,6 +457,15 @@ export default function App() {
     } catch (error) {
       setDirectoryError(error instanceof Error ? error.message : 'Não foi possível entrar no curso.')
     }
+  }
+
+  const saveCommunity = async (community: Community) => {
+    const created = await createCommunity(community)
+    setCommunities(current => [...current, created])
+    setActiveCommunity(created)
+    setActiveChannel(created.channels[0])
+    setActiveTab('communities')
+    setShowCreateCommunity(false)
   }
 
   const assignRole = async (event: React.FormEvent) => {
@@ -477,11 +582,14 @@ export default function App() {
           {/* Sidebar */}
           <aside style={{ width: 232, background: 'var(--muted)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
             <div style={{ flex: 1, overflowY: 'auto', padding: '14px 10px' }}>
-              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted-foreground)', padding: '0 4px', marginBottom: 8 }}>Comunidades</div>
-              {COMMUNITIES.filter(course => canAccessAllCourses || user?.courses.includes(course.id)).map(c => (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 4px', marginBottom: 8 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted-foreground)' }}>Comunidades</div>
+                {user?.role === 'owner' && <button title="Criar comunidade" aria-label="Criar comunidade" onClick={() => setShowCreateCommunity(true)} style={{ width: 26, height: 26, display: 'grid', placeItems: 'center', border: 0, borderRadius: 6, background: 'transparent', color: 'var(--muted-foreground)', cursor: 'pointer' }}><IPlus /></button>}
+              </div>
+              {communities.filter(course => canAccessAllCourses || user?.courses.includes(course.id)).map(c => (
                 <button key={c.id} onClick={() => { setActiveCommunity(c); setActiveChannel(c.channels[0]) }}
                   style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '7px 8px', borderRadius: 8, border: 'none', cursor: 'pointer', marginBottom: 1, background: activeCommunity.id === c.id ? 'var(--secondary)' : 'transparent', color: activeCommunity.id === c.id ? 'var(--foreground)' : 'var(--muted-foreground)', transition: 'all 0.12s', fontFamily: 'inherit' }}>
-                  <span style={{ width: 32, height: 32, borderRadius: 9, background: c.color + '20', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flexShrink: 0, border: `2px solid ${activeCommunity.id === c.id ? c.color : 'transparent'}`, transition: 'border-color 0.12s' }}>{c.emoji}</span>
+                  <span style={{ width: 32, height: 32, borderRadius: 9, overflow: 'hidden', background: c.color + '20', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flexShrink: 0, border: `2px solid ${activeCommunity.id === c.id ? c.color : 'transparent'}`, transition: 'border-color 0.12s' }}>{c.logoDataUrl ? <img src={c.logoDataUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : c.emoji}</span>
                   <div style={{ textAlign: 'left', minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
                   </div>
@@ -527,7 +635,11 @@ export default function App() {
 
           {/* Chat area */}
           <main style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+            {activeCommunity.bannerDataUrl && <div role="img" aria-label={`Banner de ${activeCommunity.name}`} style={{ height: 92, flexShrink: 0, backgroundImage: `linear-gradient(90deg, rgba(11,17,15,.24), rgba(11,17,15,.08)), url("${activeCommunity.bannerDataUrl}")`, backgroundPosition: 'center', backgroundSize: 'cover' }} />}
             <header style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+              {activeCommunity.logoDataUrl
+                ? <img src={activeCommunity.logoDataUrl} alt={`Logo de ${activeCommunity.name}`} style={{ width: 28, height: 28, borderRadius: 7, objectFit: 'cover' }} />
+                : <span style={{ fontSize: 20 }}>{activeCommunity.emoji}</span>}
               <span style={{ color: 'var(--muted-foreground)' }}><IHash /></span>
               <span style={{ fontWeight: 700, fontSize: 15 }}>{activeChannel.name}</span>
               <span style={{ fontSize: 12, color: 'var(--muted-foreground)', marginLeft: 8 }}>— {activeCommunity.description}</span>
@@ -740,7 +852,7 @@ export default function App() {
             <section style={{ marginBottom: 36 }}>
               <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 14 }}>Comunidades</h2>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
-                {COMMUNITIES.filter(c => !exploreSearch || c.name.toLowerCase().includes(exploreSearch.toLowerCase())).map(c => {
+                {communities.filter(c => !exploreSearch || c.name.toLowerCase().includes(exploreSearch.toLowerCase())).map(c => {
                   const enrolled = canAccessAllCourses || !!user?.courses.includes(c.id)
                   return (
                     <div key={c.id} className="course-card" style={{ borderTop: `2px solid ${c.color}` }}>
@@ -846,7 +958,7 @@ export default function App() {
               <div style={{ marginBottom: 22 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--muted-foreground)', marginBottom: 10 }}>Comunidades</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-                  {COMMUNITIES.map(c => {
+                  {communities.map(c => {
                     const enrolled = canAccessAllCourses || user.courses.includes(c.id)
                     return (
                     <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 9, background: 'var(--muted)', border: '1px solid var(--border)' }}>
@@ -878,7 +990,7 @@ export default function App() {
                       const myMsgs = msgs.filter(m => m.author === user.name)
                       if (myMsgs.length === 0) return null
                       const [cId] = key.split('::')
-                      const comm = COMMUNITIES.find(c => c.id === cId)
+                      const comm = communities.find(c => c.id === cId)
                       return (
                         <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
                           <span>{comm?.emoji ?? '💬'}</span>
@@ -895,6 +1007,9 @@ export default function App() {
 
       {showEditProfile && user && (
         <EditProfileModal user={user} onClose={() => setShowEditProfile(false)} onSave={updated => { setUser(updated); setShowEditProfile(false) }} />
+      )}
+      {showCreateCommunity && user?.role === 'owner' && (
+        <CreateCommunityModal onClose={() => setShowCreateCommunity(false)} onCreate={saveCommunity} />
       )}
     </div>
   )

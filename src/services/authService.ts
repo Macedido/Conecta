@@ -1,5 +1,6 @@
 import { projectId, publicAnonKey } from '../../utils/supabase/info'
 import { supabase } from './supabaseClient'
+import type { Community } from '../data/communities'
 
 export { supabase } from './supabaseClient'
 
@@ -156,4 +157,12 @@ export function updateUserRole(email: string, role: Exclude<UserRole, 'owner'>):
 
 export function joinCourse(courseId: string): Promise<UserProfile> {
   return api<UserProfile>('/courses', { method: 'POST', body: JSON.stringify({ courseId }) })
+}
+
+export function listCommunities(): Promise<Community[]> {
+  return publicApi<Community[]>('/communities')
+}
+
+export function createCommunity(community: Community): Promise<Community> {
+  return api<Community>('/communities', { method: 'POST', body: JSON.stringify(community) })
 }

@@ -6,9 +6,25 @@ export type Community = {
   color: string
   description: string
   channels: Channel[]
+  logoDataUrl?: string | null
+  bannerDataUrl?: string | null
 }
 
 export const COMMUNITIES: Community[] = [
+  {
+    id: 'colegio-apoio',
+    name: 'Colégio Apoio',
+    emoji: '🏫',
+    color: '#f0a35e',
+    description: 'A comunidade oficial para aprender, conversar e crescer juntos no Colégio Apoio.',
+    channels: [
+      { id: 'geral', name: 'geral', type: 'text' },
+      { id: 'avisos', name: 'avisos', type: 'text' },
+      { id: 'duvidas', name: 'dúvidas', type: 'text' },
+      { id: 'estudos', name: 'estudos', type: 'text' },
+      { id: 'sala-voz', name: 'sala de voz', type: 'voice' },
+    ],
+  },
   {
     id: 'matematica',
     name: 'Matemática',

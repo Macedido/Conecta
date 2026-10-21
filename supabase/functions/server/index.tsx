@@ -18,7 +18,7 @@ type UserProfile = {
   courses: string[];
 };
 
-const courseIds = new Set(["matematica", "portugues", "historia", "fisica", "quimica", "biologia"]);
+const courseIds = new Set(["colegio-apoio", "matematica", "portugues", "historia", "fisica", "quimica", "biologia"]);
 const OWNER_EMAIL = "gabrieltmacedo@aluno.colegioapoio.net";
 const adminClient = () => createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -71,6 +71,14 @@ function validCourses(value: unknown): string[] {
   return [...new Set(value.filter((course): course is string => typeof course === "string" && courseIds.has(course)))];
 }
 
+async function knownCourse(courseId: string): Promise<boolean> {
+  return courseIds.has(courseId) || !!await kv.get(`community:${courseId}`);
+}
+
+function validCommunityId(value: unknown): value is string {
+  return typeof value === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value) && value.length <= 48;
+}
+
 // Enable logger
 app.use('*', logger(console.log));
 
@@ -85,6 +93,33 @@ app.use(
     maxAge: 600,
   }),
 );
+
+app.get("/make-server-b92ddf44/communities", async (c) => {
+  return c.json(await kv.getByPrefix("community:") as unknown[]);
+});
+
+app.post("/make-server-b92ddf44/communities", async (c) => {
+  const user = await authenticatedUser(c);
+  if (!user) return c.json({ error: "Entre para criar uma comunidade." }, 401);
+  if ((await profileFor(user)).role !== "owner") return c.json({ error: "Apenas o proprietário pode criar comunidades." }, 403);
+  const body = await c.req.json().catch(() => ({}));
+  const id = validCommunityId(body.id) ? body.id : "";
+  const name = typeof body.name === "string" ? body.name.trim().slice(0, 60) : "";
+  const description = typeof body.description === "string" ? body.description.trim().slice(0, 240) : "";
+  const emoji = typeof body.emoji === "string" ? body.emoji.slice(0, 8) : "📚";
+  const color = typeof body.color === "string" && /^#[0-9a-f]{6}$/i.test(body.color) ? body.color : "#a9e58b";
+  const channels = Array.isArray(body.channels) ? body.channels.slice(0, 12).filter((channel: any) =>
+    channel && typeof channel.id === "string" && /^[a-z0-9-]{1,48}$/.test(channel.id) &&
+    typeof channel.name === "string" && ["text", "voice"].includes(channel.type),
+  ).map((channel: any) => ({ id: channel.id, name: channel.name.slice(0, 40), type: channel.type })) : [];
+  const logoDataUrl = typeof body.logoDataUrl === "string" && body.logoDataUrl.length <= 2_100_000 ? body.logoDataUrl : null;
+  const bannerDataUrl = typeof body.bannerDataUrl === "string" && body.bannerDataUrl.length <= 2_100_000 ? body.bannerDataUrl : null;
+  if (!id || !name || channels.length === 0 || courseIds.has(id)) return c.json({ error: "Nome, identificador e ao menos um canal válido são obrigatórios." }, 400);
+  if (await kv.get(`community:${id}`)) return c.json({ error: "Já existe uma comunidade com esse nome." }, 409);
+  const community = { id, name, emoji, color, description, channels, logoDataUrl, bannerDataUrl };
+  await kv.set(`community:${id}`, community);
+  return c.json(community, 201);
+});
 
 // Health check endpoint
 app.get("/make-server-b92ddf44/health", (c) => {
@@ -138,7 +173,7 @@ app.post("/make-server-b92ddf44/courses", async (c) => {
   const user = await authenticatedUser(c);
   if (!user) return c.json({ error: "Entre para participar de um curso." }, 401);
   const body = await c.req.json().catch(() => ({}));
-  if (typeof body.courseId !== "string" || !courseIds.has(body.courseId)) {
+  if (typeof body.courseId !== "string" || !await knownCourse(body.courseId)) {
     return c.json({ error: "Curso inválido." }, 400);
   }
   const profile = await profileFor(user);
@@ -187,7 +222,7 @@ app.put("/make-server-b92ddf44/users/role", async (c) => {
 
 app.get("/make-server-b92ddf44/messages", async (c) => {
   const channel = c.req.query("channel") ?? "";
-  if (!/^[a-z-]+::[a-z-]+$/.test(channel)) return c.json({ error: "Canal inválido." }, 400);
+  if (!/^[a-z0-9-]+::[a-z0-9-]+$/.test(channel)) return c.json({ error: "Canal inválido." }, 400);
   const items = await kv.getByPrefix(`message:${channel}:`);
   return c.json(items.sort((a: any, b: any) => a.createdAt.localeCompare(b.createdAt)));
 });
@@ -199,7 +234,7 @@ app.post("/make-server-b92ddf44/messages", async (c) => {
   const channel = typeof body.channel === "string" ? body.channel : "";
   const text = typeof body.text === "string" ? body.text.trim().slice(0, 2000) : "";
   const courseId = channel.split("::")[0];
-  if (!/^[a-z-]+::[a-z-]+$/.test(channel) || !courseIds.has(courseId) || !text) {
+  if (!/^[a-z0-9-]+::[a-z0-9-]+$/.test(channel) || !await knownCourse(courseId) || !text) {
     return c.json({ error: "Canal ou mensagem inválidos." }, 400);
   }
   const profile = await profileFor(user);

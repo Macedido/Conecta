@@ -39,11 +39,11 @@ export default function Logo({ size = 40 }: { size?: number }) {
         fill="none"
       />
       {/* Left pill */}
-      <rect x="28" y="21" width="16" height="27" rx="8" fill="#a9e58b" />
+      <rect x="25" y="19" width="22" height="31" rx="11" fill="#a9e58b" />
       {/* Right pill */}
-      <rect x="56" y="21" width="16" height="27" rx="8" fill="#a9e58b" />
-      <circle ref={leftEye} data-base-x="36" data-base-y="34" cx="36" cy="34" r="3.2" fill="#0b110f" className="logo-pupil" />
-      <circle ref={rightEye} data-base-x="64" data-base-y="34" cx="64" cy="34" r="3.2" fill="#0b110f" className="logo-pupil" />
+      <rect x="53" y="19" width="22" height="31" rx="11" fill="#a9e58b" />
+      <circle ref={leftEye} data-base-x="36" data-base-y="34" cx="36" cy="34" r="5" fill="#0b110f" className="logo-pupil" />
+      <circle ref={rightEye} data-base-x="64" data-base-y="34" cx="64" cy="34" r="5" fill="#0b110f" className="logo-pupil" />
     </svg>
   )
 }
