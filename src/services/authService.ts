@@ -18,7 +18,7 @@ export interface UserProfile {
   courses: string[]
 }
 
-const serverUrl = `https://${projectId}.supabase.co/functions/v1/server`
+const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-b92ddf44`
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const { data: { session } } = await supabase.auth.getSession()
